@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRACK RECORD PERKEMBANGAN TOLIBAT</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background-color: #f9f9f9; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        tr.is-filled { background-color: #f0fff4; }
+        .ni-text { color: #666; font-size: 0.85em; font-weight: normal; }
+        .skor-container { display: flex; justify-content: space-around; min-width: 120px; }
+        .skor-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; }
+        .btn-save { background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .button-group { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+        
+        /* Loading Overlay */
+        #loading-gate {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; display: flex; justify-content: center; align-items: center;
+            z-index: 9999; font-weight: bold;
+        }
+
+        @media screen and (max-width: 600px) {
+            th, td { padding: 8px; font-size: 12px; }
+            .button-group { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Overlay Satpam -->
+    <div id="loading-gate">Mengecek Akses Guru...</div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Guru: Saidah, B.A</h2>
+        <button onclick="prosesLogout()" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Logout</button>
+    </div>
+
+    <table id="tabelInput">
+        <thead><tr></tr></thead>
+        <tbody></tbody>
+    </table>
+
+    <div class="button-group">
+        <!-- Tombol Utama -->
+        <button id="btnSimpan" onclick="simpanData()" class="btn-save">Simpan Data Murid</button>
+        
+        <!-- Tombol Navigasi Rekap -->
+        <button onclick="window.location.href='rekap.html'" style="background:#6c757d; color:white; border:none; border-radius:8px; padding:12px 25px; cursor:pointer;">
+            Lihat Rekap →
+        </button>
+
+        <!-- Tombol Navigasi Admin[cite: 3] -->
+        <button onclick="window.location.href='admin.html'" style="background:#007bff; color:white; border:none; border-radius:8px; padding:12px 25px; cursor:pointer;">
+            ⚙️ Kelola Murid & Materi
+        </button>
+    </div>
+
+<script>
+    const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co'; 
+    const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1'; 
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let daftarMateriGlobal = [];
+
+    // FUNGSI SATPAM: Cek Sesi Login Sebelum Muat Halaman[cite: 4]
+    window.onload = async function() {
+        try {
+            const { data: { session } } = await _supabase.auth.getSession();
+
+            if (!session) {
+                // Jika tidak login, tendang ke login.html[cite: 3]
+                alert("Akses ditolak! Silakan login terlebih dahulu.");
+                window.location.href = "login.html";
+                return;
+            }
+
+            // Jika lolos satpam, sembunyikan overlay dan muat data[cite: 4]
+            document.getElementById('loading-gate').style.display = 'none';
+            await muatDataUtama();
+
+        } catch (err) {
+            console.error("Error Satpam:", err);
+            window.location.href = "login.html";
+        }
+    };
+
+    async function muatDataUtama() {
+        try {
+            const { data: materiData } = await _supabase.from('materi').select('nama_materi');
+            const { data: muridData } = await _supabase.from('murid').select('nomor_induk, nama_murid');
+
+            daftarMateriGlobal = materiData.map(m => m.nama_materi);
+            const theadRow = document.querySelector("thead tr");
+            const tbody = document.querySelector("tbody");
+
+            theadRow.innerHTML = "<th>Identitas Murid</th>";
+            daftarMateriGlobal.forEach(m => { theadRow.innerHTML += `<th>${m}</th>`; });
+
+            muridData.forEach(mrd => {
+                let barisHTML = `
+                    <td>
+                        <span class="ni-text">NI: ${mrd.nomor_induk}</span><br>
+                        <b class="nama-murid">${mrd.nama_murid}</b>
+                        <input type="hidden" class="ni-val" value="${mrd.nomor_induk}">
+                    </td>`;
+                
+                daftarMateriGlobal.forEach(m => {
+                    let grupID = `grup-${mrd.nomor_induk}-${m.replace(/\s/g, '')}`; 
+                    barisHTML += `<td>
+                        <div class="skor-container">
+                            ${['A','B','C','D','E'].map(h => `
+                                <div class="skor-item">
+                                    <span>${h}</span>
+                                    <input type="radio" name="${grupID}" value="${h}" data-materi="${m}" onchange="this.closest('tr').classList.add('is-filled')">
+                                </div>
+                            `).join('')}
+                        </div>
+                    </td>`;
+                });
+                tbody.innerHTML += `<tr>${barisHTML}</tr>`;
+            });
+        } catch (err) { alert("Gagal muat data murid."); }
+    }
+
+    async function prosesLogout() {
+        if(confirm("Yakin ingin keluar?")) {
+            await _supabase.auth.signOut(); // Hapus sesi login di Supabase[cite: 1]
+            window.location.href = "login.html";
+        }
+    }
+
+    async function simpanData() {
+        const btn = document.getElementById("btnSimpan");
+        const rows = document.querySelectorAll("tbody tr");
+        const hasilEvaluasi = [];
+        const hariIni = new Date().toISOString().split('T')[0];
+
+        rows.forEach(row => {
+            const ni = row.querySelector(".ni-val").value; 
+            const nama = row.querySelector(".nama-murid").innerText;
+            const dataInput = { nomor_induk: ni, nama: nama };
+            let isi = false;
+
+            daftarMateriGlobal.forEach(m => {
+                const radio = row.querySelector(`input[data-materi="${m}"]:checked`);
+                if (radio) {
+                    dataInput[m.toLowerCase()] = radio.value;
+                    isi = true;
+                }
+            });
+            if (isi) hasilEvaluasi.push(dataInput);
+        });
+
+        if (hasilEvaluasi.length === 0) return alert("Pilih nilai dulu!");
+
+        btn.disabled = true;
+        btn.innerText = "Memproses...";
+
+        try {
+            for (let entry of hasilEvaluasi) {
+                const { data: ada } = await _supabase
+                    .from('evaluasi')
+                    .select('id')
+                    .eq('nomor_induk', entry.nomor_induk)
+                    .gte('created_at', hariIni + 'T00:00:00Z')
+                    .lte('created_at', hariIni + 'T23:59:59Z');
+
+                if (ada && ada.length > 0) {
+                    if (!confirm(`NI ${entry.nomor_induk} (${entry.nama}) sudah diinput hari ini. Simpan lagi?`)) {
+                        btn.disabled = false; btn.innerText = "Simpan Data Murid"; return;
+                    }
+                }
+            }
+
+            const { error } = await _supabase.from('evaluasi').insert(hasilEvaluasi);
+            if (error) throw error;
+            alert("Data Berhasil Disimpan!");
+            location.reload();
+        } catch (err) {
+            alert("Error: " + err.message);
+            btn.disabled = false; btn.innerText = "Simpan Data Murid";
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekapitulasi Nilai Murid</title>
+    
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 40px; background-color: #f4f7f6; color: #333; }
+        .container { max-width: 1200px; margin: auto; background: white; padding: 30px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.1); }
+        h1 { text-align: center; color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background-color: #007bff; color: white; padding: 12px; text-transform: uppercase; font-size: 13px; }
+        td { padding: 10px; border: 1px solid #dee2e6; text-align: center; font-size: 14px; }
+        tr:nth-child(even) { background-color: #f8f9fa; }
+        tr:hover { background-color: #e9ecef; }
+
+        /* Pewarnaan Skor Otomatis */
+        .skor { font-weight: bold; border-radius: 4px; padding: 2px 8px; }
+        .skor-A { color: #2ecc71; background: #eafaf1; }
+        .skor-B { color: #3498db; background: #ebf5fb; }
+        .skor-C { color: #f1c40f; background: #fef9e7; }
+        .skor-D { color: #e67e22; background: #fdf5e6; }
+        .skor-E { color: #e74c3c; background: #fdedec; }
+
+        td:nth-child(2) { color: #666; font-size: 12px; font-style: italic; }
+
+        @media screen and (max-width: 600px) {
+            body { margin: 10px; }
+            .container { padding: 15px; }
+            th, td { padding: 8px; font-size: 12px; }
+            h1 { font-size: 18px; }
+            button { width: 100%; }
+        }
+
+        @media print {
+            button, .filter-box { display: none !important; }
+            body { margin: 10mm; background-color: white; }
+            .container { box-shadow: none; padding: 0; width: 100%; }
+            .skor { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+        }
+
+        .button-group { display: flex; justify-content: center; gap: 15px; margin-bottom: 20px; }
+        .btn-back { background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-print { background-color: #6c757d; color: white; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        
+        .filter-box { margin-bottom: 20px; text-align: center; background: #eee; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <div class="container" style="overflow-x: auto;">
+        <div class="filter-box">
+            <label><strong>Pilih Tanggal Evaluasi: </strong></label>
+            <input type="date" id="filterTanggal" onchange="filterData()">
+            <button onclick="resetFilter()" style="margin-left: 10px; padding: 5px 10px; cursor: pointer;">Reset</button>
+        </div>
+
+        <h1>REKAPITULASI PERKEMBANGAN TOLIBAT</h1>
+        <div id="loading" style="text-align: center;">Mengambil data dari pusat...</div>
+        <div id="konten-tabel"></div>
+
+        <div class="button-group">
+            <button onclick="window.location.href='index.html'" class="btn-back">← Kembali</button>
+            <button onclick="cetakRekap()" class="btn-print">Cetak Laporan PDF</button>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co'; 
+        const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1';
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        let semuaData = []; // Menyimpan data asli dari database
+        const listMateri = ['nahwu_shorof', 'fahmul_maqru', 'qiroah', 'hiwar'];
+
+        function cetakRekap() {
+            window.print();
+        }
+
+        async function muatDataDariSupabase() {
+            const loadingElement = document.getElementById('loading');
+            try {
+                const { data, error } = await _supabase
+                    .from('evaluasi')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+
+                if (error) throw error;
+
+                semuaData = data; // Simpan data ke variabel global agar bisa difilter
+                loadingElement.style.display = 'none';
+                tampilkanData(semuaData); 
+
+            } catch (err) {
+                loadingElement.innerHTML = "Gagal mengambil data: " + err.message;
+            }
+        }
+
+        function tampilkanData(dataUntukDitampilkan) {
+            let html = '<table><thead><tr><th>Nama Murid</th><th>Tanggal</th>';
+            listMateri.forEach(m => { html += `<th>${m.replace('_', ' ').toUpperCase()}</th>`; });
+            html += '</tr></thead><tbody>';
+
+            if (!dataUntukDitampilkan || dataUntukDitampilkan.length === 0) {
+                html += `<tr><td colspan="${listMateri.length + 2}">Tidak ada data untuk ditampilkan.</td></tr>`;
+            } else {
+                dataUntukDitampilkan.forEach(row => {
+                    let tglFormat = new Date(row.created_at).toLocaleDateString('id-ID');
+                    html += `<tr>
+                        <td style="text-align: left; font-weight: bold;">${row.nama || '-'}</td>
+                        <td>${tglFormat}</td>`;
+                    
+                    listMateri.forEach(m => {
+                        let skor = row[m] || "-";
+                        let warnaClass = (skor !== "-") ? `skor-${skor}` : "";
+                        html += `<td><span class="skor ${warnaClass}">${skor}</span></td>`;
+                    });
+                    html += '</tr>';
+                });
+            }
+            html += '</tbody></table>';
+            document.getElementById('konten-tabel').innerHTML = html;
+        }
+
+        // Fungsi Filter: Menyaring data berdasarkan input tanggal
+        function filterData() {
+            const tglPilihan = document.getElementById('filterTanggal').value; // Format: YYYY-MM-DD[cite: 5]
+            
+            if (!tglPilihan) {
+                tampilkanData(semuaData);
+                return;
+            }
+
+            const hasilFilter = semuaData.filter(row => {
+                // Samakan format tanggal database dengan input kalender[cite: 5]
+                const tglData = new Date(row.created_at).toISOString().split('T')[0];
+                return tglData === tglPilihan;
+            });
+
+            tampilkanData(hasilFilter);
+        }
+
+        function resetFilter() {
+            document.getElementById('filterTanggal').value = '';
+            tampilkanData(semuaData);
+        }
+
+        window.onload = muatDataDariSupabase;
+    </script>
+</body>
+</html>
