@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TRACK RECORD PERKEMBANGAN TOLIBAT</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background-color: #f9f9f9; }
+        table { width: 100%; border-collapse: collapse; background: white; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        th, td { padding: 12px; border-bottom: 1px solid #eee; text-align: left; }
+        tr.is-filled { background-color: #f0fff4; }
+        .ni-text { color: #666; font-size: 0.85em; font-weight: normal; }
+        .skor-container { display: flex; justify-content: space-around; min-width: 120px; }
+        .skor-item { display: flex; flex-direction: column; align-items: center; font-size: 10px; }
+        .input-angka { width: 60px; padding: 8px; border: 1px solid #ddd; border-radius: 4px; text-align: center; }
+        .btn-save { background-color: #28a745; color: white; padding: 12px 25px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .button-group { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+        
+        .filter-kelas { margin-bottom: 20px; background: white; padding: 15px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        select { padding: 10px; border-radius: 5px; border: 1px solid #ddd; width: 200px; }
+
+        #loading-gate {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; display: flex; justify-content: center; align-items: center;
+            z-index: 9999; font-weight: bold;
+        }
+
+        @media screen and (max-width: 600px) {
+            th, td { padding: 8px; font-size: 12px; }
+            .button-group { flex-direction: column; }
+            select { width: 100%; }
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-gate">Mengecek Akses Guru...</div>
+
+    <div style="display: flex; justify-content: space-between; align-items: center;">
+        <h2>Guru: Saidah, B.A</h2>
+        <button onclick="prosesLogout()" style="background: #dc3545; color: white; border: none; padding: 8px 15px; border-radius: 5px; cursor: pointer;">Logout</button>
+    </div>
+
+    <div class="filter-kelas">
+        <label><b>Pilih Kelas:</b></label><br>
+        <select id="pilihKelas" onchange="muatDataUtama()">
+            <option value="">-- Memuat Kelas --</option>
+        </select>
+    </div>
+
+    <table id="tabelInput">
+        <thead><tr></tr></thead>
+        <tbody>
+            <tr><td colspan="100%" style="text-align:center; padding:50px;">Silakan pilih kelas terlebih dahulu.</td></tr>
+        </tbody>
+    </table>
+
+    <div class="button-group">
+        <button id="btnSimpan" onclick="simpanData()" class="btn-save">Simpan Data Murid</button>
+        <button onclick="window.location.href='rekap.html'" style="background:#6c757d; color:white; border:none; border-radius:8px; padding:12px 25px; cursor:pointer;">Lihat Rekap →</button>
+        <button onclick="window.location.href='admin.html'" style="background:#007bff; color:white; border:none; border-radius:8px; padding:12px 25px; cursor:pointer;">⚙️ Kelola Murid & Materi</button>
+    </div>
+
+<script>
+    const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co'; 
+    const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1'; 
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let daftarMateriGlobal = [];
+
+    window.onload = async function() {
+        try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (!session) {
+                window.location.href = "login.html";
+                return;
+            }
+            document.getElementById('loading-gate').style.display = 'none';
+            await muatDaftarKelas();
+        } catch (err) {
+            window.location.href = "login.html";
+        }
+    };
+
+    async function muatDaftarKelas() {
+        const select = document.getElementById('pilihKelas');
+        try {
+            const { data: kelasData } = await _supabase.from('kelas').select('nama_kelas').order('nama_kelas', { ascending: true });
+            if (kelasData) {
+                select.innerHTML = '<option value="">-- Pilih Kelas --</option>' + 
+                    kelasData.map(k => `<option value="${k.nama_kelas}">${k.nama_kelas}</option>`).join('');
+            }
+        } catch (err) {
+            select.innerHTML = '<option value="">Gagal memuat kelas</option>';
+        }
+    }
+
+    async function muatDataUtama() {
+        const kelasTerpilih = document.getElementById('pilihKelas').value;
+        const tbody = document.querySelector("tbody");
+        const theadRow = document.querySelector("thead tr");
+
+        if (!kelasTerpilih) {
+            theadRow.innerHTML = "";
+            tbody.innerHTML = "<tr><td colspan='100%' style='text-align:center; padding:50px;'>Silakan pilih kelas terlebih dahulu.</td></tr>";
+            return;
+        }
+
+        tbody.innerHTML = "<tr><td colspan='100%' style='text-align:center; padding:50px;'>Memuat data murid...</td></tr>";
+
+        try {
+            const { data: materiData } = await _supabase.from('materi').select('nama_materi, tipe_penilaian');
+            const { data: muridData } = await _supabase.from('murid').select('nomor_induk, nama_murid, id').eq('kelas', kelasTerpilih);
+
+            daftarMateriGlobal = materiData;
+            theadRow.innerHTML = "<th>Identitas Murid</th>";
+            daftarMateriGlobal.forEach(m => { theadRow.innerHTML += `<th>${m.nama_materi.toUpperCase()}</th>`; });
+
+            if (!muridData || muridData.length === 0) {
+                tbody.innerHTML = "<tr><td colspan='100%' style='text-align:center; padding:50px;'>Tidak ada murid di kelas ini.</td></tr>";
+                return;
+            }
+
+            tbody.innerHTML = "";
+            muridData.forEach(mrd => {
+                let barisHTML = `
+                    <td>
+                        <span class="ni-text">NI: ${mrd.nomor_induk}</span><br>
+                        <b class="nama-murid">${mrd.nama_murid}</b>
+                        <input type="hidden" class="ni-val" value="${mrd.nomor_induk}">
+                        <input type="hidden" class="mrd-id" value="${mrd.id}">
+                    </td>`;
+                
+                daftarMateriGlobal.forEach(m => {
+                    let bersihNamaMateri = m.nama_materi.replace(/[^a-zA-Z0-9]/g, ''); 
+                    let grupID = `grup_${mrd.id}_${bersihNamaMateri}`; 
+                    
+                    let cellContent = "";
+                    if (m.tipe_penilaian === 'angka') {
+                        cellContent = `<input type="number" min="0" max="100" class="input-angka" 
+                                        data-materi="${m.nama_materi}" data-tipe="angka" 
+                                        placeholder="0-100" oninput="this.closest('tr').classList.add('is-filled')">`;
+                    } else {
+                        cellContent = `
+                            <div class="skor-container">
+                                ${['A','B','C','D','E'].map(h => `
+                                    <div class="skor-item">
+                                        <span>${h}</span>
+                                        <input type="radio" name="${grupID}" value="${h}" 
+                                         data-materi="${m.nama_materi}" data-tipe="huruf" 
+                                         onchange="this.closest('tr').classList.add('is-filled')">
+                                    </div>
+                                `).join('')}
+                            </div>`;
+                    }
+                    barisHTML += `<td>${cellContent}</td>`;
+                });
+                tbody.innerHTML += `<tr>${barisHTML}</tr>`;
+            });
+        } catch (err) { alert("Gagal muat data murid."); }
+    }
+
+    // FUNGSI SIMPAN DATA VERTIKAL (AUTO-KONEK)[cite: 7, 8]
+    async function simpanData() {
+        const btn = document.getElementById("btnSimpan");
+        const kelasTerpilih = document.getElementById('pilihKelas').value;
+        const rows = document.querySelectorAll("tbody tr");
+        const dataUntukSimpan = [];
+        const hariIni = new Date().toISOString().split('T')[0];
+
+        if (!kelasTerpilih) return alert("Pilih kelas dulu!");
+
+        rows.forEach(row => {
+            const ni = row.querySelector(".ni-val").value; 
+            const nama = row.querySelector(".nama-murid").innerText;
+
+            daftarMateriGlobal.forEach(m => {
+                let nilai = "";
+                if (m.tipe_penilaian === 'angka') {
+                    const input = row.querySelector(`input[data-materi="${m.nama_materi}"][data-tipe="angka"]`);
+                    nilai = (input && input.value !== "") ? input.value : "";
+                } else {
+                    const radio = row.querySelector(`input[data-materi="${m.nama_materi}"][data-tipe="huruf"]:checked`);
+                    nilai = radio ? radio.value : "";
+                }
+
+                // Jika ada nilai, buat baris baru untuk materi tersebut
+                if (nilai !== "") {
+                    dataUntukSimpan.push({
+                        nomor_induk: ni,
+                        nama: nama,
+                        kelas: kelasTerpilih,
+                        nama_materi: m.nama_materi.toLowerCase(),
+                        skor: nilai
+                    });
+                }
+            });
+        });
+
+        if (dataUntukSimpan.length === 0) return alert("Pilih nilai dulu!");
+
+        btn.disabled = true;
+        btn.innerText = "Memproses...";
+
+        try {
+            // Cek duplikasi harian per materi[cite: 8]
+            for (let entry of dataUntukSimpan) {
+                const { data: ada } = await _supabase
+                    .from('evaluasi')
+                    .select('id')
+                    .eq('nomor_induk', entry.nomor_induk)
+                    .eq('nama_materi', entry.nama_materi)
+                    .gte('created_at', hariIni + 'T00:00:00Z')
+                    .lte('created_at', hariIni + 'T23:59:59Z');
+
+                if (ada && ada.length > 0) {
+                    if (!confirm(`NI ${entry.nomor_induk} sudah ada nilai ${entry.nama_materi.toUpperCase()} hari ini. Timpa?`)) {
+                        btn.disabled = false; btn.innerText = "Simpan Data Murid"; return;
+                    }
+                }
+            }
+
+            const { error } = await _supabase.from('evaluasi').insert(dataUntukSimpan);
+            if (error) throw error;
+            alert("Data Berhasil Disimpan!");
+            location.reload();
+        } catch (err) {
+            alert("Error: " + err.message);
+            btn.disabled = false; btn.innerText = "Simpan Data Murid";
+        }
+    }
+
+    async function prosesLogout() {
+        if(confirm("Yakin ingin keluar?")) {
+            await _supabase.auth.signOut();
+            window.location.href = "login.html";
+        }
+    }
+</script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cek Nilai Santriwati - Wali Murid</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; margin: 0; padding: 20px; background: #f0f2f5; color: #333; }
+        .container { max-width: 600px; margin: auto; }
+        
+        .search-card { 
+            background: white; padding: 30px; border-radius: 20px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); text-align: center;
+            margin-bottom: 25px;
+        }
+
+        h2 { color: #2c3e50; margin-bottom: 10px; }
+        p { color: #7f8c8d; font-size: 14px; margin-bottom: 25px; }
+
+        .input-group { margin-bottom: 15px; text-align: left; }
+        label { font-size: 13px; font-weight: bold; color: #555; margin-left: 5px; }
+        input, select { 
+            width: 100%; padding: 15px; border: 2px solid #e0e0e0; 
+            border-radius: 12px; font-size: 16px; box-sizing: border-box;
+            transition: 0.3s; margin-top: 5px;
+        }
+        input:focus, select:focus { border-color: #007bff; outline: none; }
+
+        button { 
+            width: 100%; background: #007bff; color: white; padding: 15px; 
+            border: none; border-radius: 12px; font-size: 16px; 
+            font-weight: bold; cursor: pointer; transition: 0.3s; margin-top: 10px;
+        }
+        button:hover { background: #0056b3; }
+
+        .hasil-box { 
+            background: white; padding: 20px; border-radius: 20px; 
+            display: none; box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+        }
+
+        .info-santri { 
+            border-left: 4px solid #007bff; padding-left: 15px; 
+            margin-bottom: 20px; text-align: left;
+        }
+
+        .rekap-card {
+            background: #ffffff; border: 1px solid #eee; border-radius: 15px;
+            padding: 15px; margin-bottom: 20px; box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .tgl-header { 
+            background: #f8f9fa; margin: -15px -15px 15px -15px; 
+            padding: 10px 15px; border-radius: 15px 15px 0 0; 
+            font-weight: bold; color: #007bff; border-bottom: 1px solid #eee;
+        }
+        .rekap-row { 
+            display: flex; justify-content: space-between; 
+            padding: 10px 0; border-bottom: 1px dashed #eee; 
+        }
+        .rekap-row:last-child { border-bottom: none; }
+        .label-materi { font-weight: 600; color: #666; font-size: 12px; text-transform: uppercase; }
+        .skor-val { font-weight: bold; color: #333; }
+        .total-skor { color: #28a745; font-weight: bold; }
+        .rata-skor { background: #fff5f5; color: #d9534f; padding: 2px 8px; border-radius: 5px; font-weight: bold; }
+
+        .btn-print { background: #28a745; margin-top: 20px; color: white; width: 100%; }
+
+        @media print {
+            .search-card, .btn-print { display: none; }
+            body { background: white; padding: 0; }
+            .hasil-box { display: block !important; box-shadow: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="search-card">
+            <h2>🔍 Portal Wali Murid</h2>
+            <p>Pilih kelas dan masukkan data ananda untuk melihat laporan.</p>
+            
+            <div class="input-group">
+                <label>Pilih Kelas</label>
+                <select id="pilihKelas">
+                    <option value="">-- Memuat Daftar Kelas --</option>
+                </select>
+            </div>
+
+            <div class="input-group">
+                <label>Nomor Induk (NI)</label>
+                <input type="text" id="niInput" placeholder="Contoh: 2026001">
+            </div>
+
+            <div class="input-group">
+                <label>Nama Lengkap Murid</label>
+                <input type="text" id="namaInput" placeholder="Contoh: Fatimah">
+            </div>
+
+            <button id="btnCari" onclick="cariData()">Tampilkan Laporan</button>
+        </div>
+
+        <div id="hasil" class="hasil-box">
+            <div class="info-santri">
+                <h3 id="displayNama" style="margin: 0;">-</h3>
+                <span id="displayNI" style="color: #7f8c8d; font-size: 13px;">NI: -</span> | 
+                <span id="displayKelas" style="color: #007bff; font-size: 13px; font-weight: bold;">Kelas: -</span>
+            </div>
+            <div id="tabelContainer"></div>
+            <button class="btn-print" onclick="window.print()">📥 Simpan sebagai PDF / Cetak</button>
+        </div>
+    </div>
+
+<script>
+    const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co'; 
+    const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1'; 
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    window.onload = muatDaftarKelas;
+
+    async function muatDaftarKelas() {
+        const select = document.getElementById('pilihKelas');
+        try {
+            const { data } = await _supabase.from('kelas').select('nama_kelas').order('nama_kelas', { ascending: true });
+            if (data) {
+                select.innerHTML = '<option value="">-- Pilih Kelas --</option>' + 
+                    data.map(k => `<option value="${k.nama_kelas}">${k.nama_kelas}</option>`).join('');
+            }
+        } catch (err) {
+            select.innerHTML = '<option value="">Gagal memuat kelas</option>';
+        }
+    }
+
+    async function cariData() {
+        const kelas = document.getElementById('pilihKelas').value;
+        const ni = document.getElementById('niInput').value.trim();
+        const nama = document.getElementById('namaInput').value.trim();
+        const btn = document.getElementById('btnCari');
+        const hasilBox = document.getElementById('hasil');
+
+        if (!kelas || !ni || !nama) return alert("Harap isi Kelas, NI, dan Nama secara lengkap!");
+
+        btn.disabled = true;
+        btn.innerText = "Mencari...";
+
+        try {
+            const { data: materiData } = await _supabase.from('materi').select('nama_materi');
+            const listMateri = materiData.map(m => m.nama_materi.toLowerCase());
+
+            const { data: evaluasiData, error } = await _supabase
+                .from('evaluasi')
+                .select('*')
+                .eq('kelas', kelas)
+                .eq('nomor_induk', ni)
+                .ilike('nama', `%${nama}%`)
+                .order('created_at', { ascending: false });
+
+            if (error) throw error;
+
+            if (!evaluasiData || evaluasiData.length === 0) {
+                alert("Data tidak ditemukan. Pastikan Kelas, NI, dan Nama sudah benar.");
+                hasilBox.style.display = "none";
+            } else {
+                tampilkanHasil(evaluasiData, listMateri);
+            }
+        } catch (err) {
+            alert("Kesalahan: " + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = "Tampilkan Laporan";
+        }
+    }
+
+    function tampilkanHasil(data, materi) {
+        const container = document.getElementById('tabelContainer');
+        const hasilBox = document.getElementById('hasil');
+        
+        document.getElementById('displayNama').innerText = data[0].nama;
+        document.getElementById('displayNI').innerText = "NI: " + (data[0].nomor_induk || "-");
+        document.getElementById('displayKelas').innerText = "Kelas: " + (data[0].kelas || "-");
+        
+        // PENGELOMPOKAN DATA BERDASARKAN TANGGAL (Proses Pivot Vertikal ke Horizontal)[cite: 9]
+        const grupPerHari = {};
+        data.forEach(row => {
+            const tgl = new Date(row.created_at).toLocaleDateString('id-ID', { 
+                day: '2-digit', month: 'long', year: 'numeric' 
+            });
+            
+            if (!grupPerHari[tgl]) {
+                grupPerHari[tgl] = { materi: {} };
+            }
+            // Simpan skor berdasarkan nama materi
+            grupPerHari[tgl].materi[row.nama_materi.toLowerCase()] = row.skor;
+        });
+
+        let html = '';
+        const bobot = { 'A': 95, 'B': 85, 'C': 75, 'D': 65, 'E': 50 };
+
+        // Render Kartu Per Hari
+        Object.keys(grupPerHari).forEach(tgl => {
+            html += `<div class="rekap-card">
+                        <div class="tgl-header">📅 Tanggal: ${tgl}</div>`;
+            
+            let totalNilai = 0;
+            let jumlahTerisi = 0;
+            const dataNilai = grupPerHari[tgl].materi;
+
+            materi.forEach(m => {
+                let nilai = dataNilai[m] || "-";
+                html += `<div class="rekap-row">
+                            <span class="label-materi">${m.replace(/_/g, ' ')}</span>
+                            <span class="skor-val">${nilai}</span>
+                         </div>`;
+                
+                if (nilai !== "-") {
+                    let angka = isNaN(nilai) ? (bobot[nilai.toUpperCase()] || 0) : parseFloat(nilai);
+                    totalNilai += angka;
+                    jumlahTerisi++;
+                }
+            });
+
+            let rataRata = jumlahTerisi > 0 ? (totalNilai / jumlahTerisi).toFixed(1) : 0;
+            html += `
+                <div class="rekap-row" style="margin-top:10px; border-top: 2px solid #eee; padding-top:15px;">
+                    <span class="label-materi" style="color:#28a745">Total Poin</span>
+                    <span class="total-skor">${totalNilai}</span>
+                </div>
+                <div class="rekap-row">
+                    <span class="label-materi" style="color:#d9534f">Rata-Rata</span>
+                    <span class="rata-skor">${rataRata}</span>
+                </div>
+            </div>`;
+        });
+
+        container.innerHTML = html;
+        hasilBox.style.display = "block";
+        hasilBox.scrollIntoView({ behavior: 'smooth' });
+    }
+</script>
+</body>
+</html>
