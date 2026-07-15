@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Laporan Nilai - Guru</title>
+    <style>
+        /* BAGIAN BACKGROUND YANG DIUBAH */
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(rgba(240, 242, 245, 0.85), rgba(240, 242, 245, 0.85)), 
+                        url('https://i.postimg.cc/BZc2W6T6/Chat-GPT-Image-Jul-16-2026-01-12-18-AM.png') no-repeat center center fixed;
+            background-size: cover;
+        }
+
+        .container { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h2 { color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        
+        .filter-box { background: #e9ecef; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .filter-item { display: flex; flex-direction: column; gap: 5px; }
+        input[type="date"], select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; min-width: 150px; }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #007bff; color: white; padding: 12px; font-size: 11px; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; font-size: 13px; }
+        tr:hover { background: #f1f8ff; }
+        
+        .skor-badge { font-weight: bold; color: #007bff; }
+        .total-badge { font-weight: bold; color: #28a745; background: #e6f4ea; padding: 4px 8px; border-radius: 4px; }
+        .rata-badge { font-weight: bold; color: #d9534f; background: #f9f2f4; padding: 4px 8px; border-radius: 4px; }
+        
+        .btn-action { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-print { background: #28a745; color: white; }
+        .btn-back { background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; }
+
+        @media print {
+            .filter-box, .btn-back, .btn-print, #loading-gate { display: none !important; }
+            body { margin: 0; background: white; }
+            .container { box-shadow: none; border: none; width: 100%; }
+        }
+
+        #loading-gate {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: white; display: flex; justify-content: center; align-items: center;
+            z-index: 9999; font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="loading-gate">Mengecek Akses Guru...</div>
+
+    <div class="container">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <a href="index.html" class="btn-back">← Kembali</a>
+            <h2>📊 Rekap Nilai Harian</h2>
+            <button class="btn-action btn-print" onclick="window.print()">📥 Cetak ke PDF</button>
+        </div>
+
+        <div class="filter-box">
+            <div class="filter-item">
+                <label style="font-size: 12px; font-weight: bold;">Filter Tanggal:</label>
+                <input type="date" id="filterTanggal" onchange="muatRekap()">
+            </div>
+            
+            <div class="filter-item">
+                <label style="font-size: 12px; font-weight: bold;">Filter Kelas:</label>
+                <select id="filterKelas" onchange="muatRekap()">
+                    <option value="">-- Semua Kelas --</option>
+                </select>
+            </div>
+        </div>
+
+        <div style="overflow-x: auto;">
+            <table id="tabelRekap">
+                <thead><tr id="headTabel"></tr></thead>
+                <tbody id="bodyTabel"></tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+    const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co'; 
+    const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1'; 
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    window.onload = async function() {
+        document.getElementById('filterTanggal').value = new Date().toISOString().split('T')[0];
+        
+        try {
+            const { data: { session } } = await _supabase.auth.getSession();
+            if (!session) {
+                window.location.href = "login.html";
+                return;
+            }
+            document.getElementById('loading-gate').style.display = 'none';
+            await muatDaftarKelas();
+            muatRekap();
+        } catch (err) {
+            window.location.href = "login.html";
+        }
+    };
+
+    async function muatDaftarKelas() {
+        const select = document.getElementById('filterKelas');
+        const { data } = await _supabase.from('kelas').select('nama_kelas').order('nama_kelas', { ascending: true });
+        if (data) {
+            select.innerHTML = '<option value="">-- Semua Kelas --</option>' + 
+                data.map(k => `<option value="${k.nama_kelas}">${k.nama_kelas}</option>`).join('');
+        }
+    }
+
+    async function muatRekap() {
+        const tanggal = document.getElementById('filterTanggal').value;
+        const kelasDipilih = document.getElementById('filterKelas').value;
+        const headTabel = document.getElementById('headTabel');
+        const bodyTabel = document.getElementById('bodyTabel');
+        
+        bodyTabel.innerHTML = "<tr><td colspan='100%'>Memuat rekap...</td></tr>";
+
+        try {
+            const { data: materiData } = await _supabase.from('materi').select('nama_materi');
+            const listMateri = materiData.map(m => m.nama_materi.toLowerCase());
+
+            let headerHTML = "<th>Tgl</th><th>Kelas</th><th>NI</th><th>Nama Murid</th>";
+            listMateri.forEach(m => { headerHTML += `<th>${m.toUpperCase()}</th>`; });
+            headerHTML += "<th>TOTAL</th><th>RATA2</th>";
+            headTabel.innerHTML = headerHTML;
+
+            let query = _supabase.from('evaluasi').select('*').order('created_at', { ascending: false });
+            
+            if (tanggal) {
+                query = query.gte('created_at', tanggal + 'T00:00:00Z').lte('created_at', tanggal + 'T23:59:59Z');
+            }
+            if (kelasDipilih) {
+                query = query.eq('kelas', kelasDipilih);
+            }
+
+            const { data: evaluasiData, error } = await query;
+            if (error) throw error;
+
+            if (!evaluasiData || evaluasiData.length === 0) {
+                bodyTabel.innerHTML = "<tr><td colspan='100%'>Tidak ada data.</td></tr>";
+                return;
+            }
+
+            const grupData = {};
+            evaluasiData.forEach(row => {
+                const tgl = new Date(row.created_at).toLocaleDateString('id-ID');
+                const key = `${tgl}_${row.nomor_induk}`;
+                
+                if (!grupData[key]) {
+                    grupData[key] = {
+                        tgl: tgl,
+                        kelas: row.kelas,
+                        ni: row.nomor_induk,
+                        nama: row.nama,
+                        nilai: {}
+                    };
+                }
+                grupData[key].nilai[row.nama_materi.toLowerCase()] = row.skor;
+            });
+
+            const bobotHuruf = { 'A': 95, 'B': 85, 'C': 75, 'D': 65, 'E': 50 };
+
+            bodyTabel.innerHTML = Object.values(grupData).map(mrd => {
+                let baris = `<td>${mrd.tgl}</td><td><small>${mrd.kelas || '-'}</small></td><td>${mrd.ni}</td><td style='text-align:left'><b>${mrd.nama}</b></td>`;
+                
+                let total = 0;
+                let jumlah = 0;
+
+                listMateri.forEach(m => {
+                    let skor = mrd.nilai[m] || "-";
+                    baris += `<td><span class="skor-badge">${skor}</span></td>`;
+
+                    if (skor !== "-") {
+                        let angka = isNaN(skor) ? (bobotHuruf[skor.toUpperCase()] || 0) : parseFloat(skor);
+                        total += angka;
+                        jumlah++;
+                    }
+                });
+
+                let rata = jumlah > 0 ? (total / jumlah).toFixed(1) : 0;
+                baris += `<td><span class="total-badge">${total}</span></td><td><span class="rata-badge">${rata}</span></td>`;
+                
+                return `<tr>${baris}</tr>`;
+            }).join('');
+
+        } catch (err) {
+            alert("Gagal memuat rekap: " + err.message);
+        }
+    }
+</script>
+</body>
+</html>
