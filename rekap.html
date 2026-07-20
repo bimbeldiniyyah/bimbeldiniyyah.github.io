@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rekap Laporan Nilai - Guru</title>
+    <style>
+        body { font-family: 'Segoe UI', sans-serif; margin: 20px; background: linear-gradient(rgba(240, 242, 245, 0.85), rgba(240, 242, 245, 0.85)), url('https://i.postimg.cc/BZc2W6T6/Chat-GPT-Image-Jul-16-2026-01-12-18-AM.png') no-repeat center center fixed; background-size: cover; }
+        .container { background: white; padding: 25px; border-radius: 15px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h2 { color: #2c3e50; border-bottom: 2px solid #007bff; padding-bottom: 10px; }
+        .filter-box { background: #e9ecef; padding: 15px; border-radius: 10px; margin-bottom: 20px; display: flex; gap: 15px; align-items: center; flex-wrap: wrap; }
+        .filter-item { display: flex; flex-direction: column; gap: 5px; }
+        select { padding: 8px; border-radius: 5px; border: 1px solid #ccc; min-width: 150px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; }
+        th { background: #007bff; color: white; padding: 12px; font-size: 11px; text-transform: uppercase; }
+        td { padding: 10px; border-bottom: 1px solid #eee; text-align: center; font-size: 13px; }
+        tr:hover { background: #f1f8ff; }
+        .skor-badge { font-weight: bold; color: #007bff; }
+        .total-badge { font-weight: bold; color: #28a745; background: #e6f4ea; padding: 4px 8px; border-radius: 4px; }
+        .rata-badge { font-weight: bold; color: #d9534f; background: #f9f2f4; padding: 4px 8px; border-radius: 4px; }
+        .btn-action { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .btn-print { background: #28a745; color: white; }
+        .btn-back { background: #6c757d; color: white; text-decoration: none; padding: 10px 20px; border-radius: 8px; font-size: 13px; }
+        .klik-nama { color: #007bff; cursor: pointer; text-decoration: underline; font-weight: bold; }
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); justify-content: center; align-items: center; z-index: 10000; }
+        .modal-content { background: white; padding: 25px; border-radius: 15px; width: 90%; max-width: 600px; position: relative; box-shadow: 0 5px 25px rgba(0,0,0,0.2); }
+        .close-btn { position: absolute; top: 15px; right: 20px; font-size: 28px; font-weight: bold; cursor: pointer; color: #dc3545; line-height: 1; }
+    </style>
+</head>
+<body>
+    <div class="container" style="display: flex; justify-content: space-between; align-items: center; padding: 15px 25px;">
+        <a href="guru.html" class="btn-back">← Kembali ke Input</a>
+        <button class="btn-action btn-print" onclick="window.print()">📥 Cetak ke PDF</button>
+    </div>
+
+    <div class="container">
+        <h2 style="margin-top: 0;">📊 Rekap Nilai Murid</h2>
+        <div class="filter-box">
+            <div class="filter-item">
+                <label style="font-size: 12px; font-weight: bold;">Filter Kelas:</label>
+                <select id="filterKelas" onchange="muatRekapUtama()"><option value="">-- Semua Kelas --</option></select>
+            </div>
+            <div class="filter-item">
+                <label style="font-size: 12px; font-weight: bold;">Periode Evaluasi:</label>
+                <select id="filterTryout" onchange="renderTabel()">
+                    <option value="Evaluasi Harian">📝 Evaluasi Harian</option>
+                </select>
+            </div>
+        </div>
+        <div style="overflow-x: auto;">
+            <table id="tabelRekap">
+                <thead><tr id="headTabel"></tr></thead>
+                <tbody id="bodyTabel"></tbody>
+            </table>
+        </div>
+    </div>
+
+<script>
+    const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co'; 
+    const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1'; 
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    let dataEvaluasiGlobal = [];
+    let listMateriGlobal = [];
+    const bobotHuruf = { 'A': 95, 'B': 85, 'C': 75, 'D': 65, 'E': 50 };
+
+    window.onload = async () => {
+        await muatDropdown();
+        muatRekapUtama();
+    };
+
+    async function muatDropdown() {
+        const { data: kls } = await _supabase.from('kelas').select('nama_kelas');
+        if (kls) document.getElementById('filterKelas').innerHTML = '<option value="">-- Semua Kelas --</option>' + kls.map(k => `<option value="${k.nama_kelas}">${k.nama_kelas}</option>`).join('');
+        
+        const { data: to } = await _supabase.from('tryout').select('nama_tryout');
+        if (to) document.getElementById('filterTryout').innerHTML += to.map(t => `<option value="${t.nama_tryout}">${t.nama_tryout}</option>`).join('');
+    }
+
+    async function muatRekapUtama() {
+        const kelasDipilih = document.getElementById('filterKelas').value;
+        let query = _supabase.from('evaluasi').select('*');
+        if (kelasDipilih) query = query.eq('kelas', kelasDipilih);
+        const { data } = await query;
+        dataEvaluasiGlobal = data || [];
+        renderTabel();
+    }
+
+    async function renderTabel() {
+        const toDipilih = document.getElementById('filterTryout').value;
+        const { data: materiData } = await _supabase.from('materi').select('nama_materi, kategori');
+        
+        // Klasifikasi: Tampilkan kolom materi sesuai kategori yang dipilih
+        let kategoriDipilih = (toDipilih === "Evaluasi Harian") ? "harian" : "tryout";
+        listMateriGlobal = materiData.filter(m => m.kategori === kategoriDipilih);
+
+        let headTabel = document.getElementById('headTabel');
+        headTabel.innerHTML = "<th>Kelas</th><th>NI</th><th>Nama Murid</th>" + listMateriGlobal.map(m => `<th>${m.nama_materi.toUpperCase()}</th>`).join('') + "<th>TOTAL</th><th>RATA2</th>";
+
+        let dataTabel = dataEvaluasiGlobal.filter(d => (d.nama_tryout || "Evaluasi Harian") === toDipilih);
+        let grupData = {};
+        dataTabel.forEach(row => {
+            if(!grupData[row.nomor_induk]) grupData[row.nomor_induk] = { kelas: row.kelas, nama: row.nama, nilai: {} };
+            grupData[row.nomor_induk].nilai[row.nama_materi.toLowerCase()] = row.skor;
+        });
+
+        document.getElementById('bodyTabel').innerHTML = Object.keys(grupData).map(ni => {
+            let mrd = grupData[ni];
+            let baris = `<td>${mrd.kelas}</td><td>${ni}</td><td style='text-align:left'><b>${mrd.nama}</b></td>`;
+            let total = 0, jumlah = 0;
+            listMateriGlobal.forEach(m => {
+                let skor = mrd.nilai[m.nama_materi.toLowerCase()] || "-";
+                baris += `<td><span class="skor-badge">${skor}</span></td>`;
+                if (skor !== "-") { total += isNaN(skor) ? (bobotHuruf[skor.toUpperCase()] || 0) : parseFloat(skor); jumlah++; }
+            });
+            baris += `<td><span class="total-badge">${total}</span></td><td><span class="rata-badge">${jumlah > 0 ? (total / jumlah).toFixed(1) : 0}</span></td>`;
+            return `<tr>${baris}</tr>`;
+        }).join('');
+    }
+</script>
+</body>
+</html>

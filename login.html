@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Guru - Bimbel Diniyyah</title>
+    <style>
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(rgba(240, 242, 245, 0.85), rgba(240, 242, 245, 0.85)), 
+                        url('https://i.postimg.cc/BZc2W6T6/Chat-GPT-Image-Jul-16-2026-01-12-18-AM.png') no-repeat center center fixed;
+            background-size: cover;
+        }
+        .login-card { 
+            background: white; 
+            padding: 40px; 
+            border-radius: 15px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); 
+            width: 100%; 
+            max-width: 350px; 
+            text-align: center; 
+        }
+        h2 { color: #2c3e50; margin-bottom: 20px; }
+        input { 
+            width: 100%; 
+            padding: 12px; 
+            margin: 10px 0; 
+            border: 1px solid #ddd; 
+            border-radius: 8px; 
+            box-sizing: border-box; 
+        }
+        button { 
+            width: 100%; 
+            background: #007bff; 
+            color: white; 
+            padding: 12px; 
+            border: none; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: 0.3s;
+        }
+        button:hover { background: #0056b3; }
+        .links { margin-top: 15px; font-size: 13px; color: #666; }
+        .links a { color: #007bff; text-decoration: none; }
+    </style>
+</head>
+<body>
+
+    <div class="login-card">
+        <h2>🔒 Login Guru</h2>
+        <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Silakan masuk untuk menginput nilai atau mengelola data murid.</p>
+        
+        <input type="email" id="email" placeholder="Email Guru">
+        <input type="password" id="password" placeholder="Kata Sandi">
+        
+        <button id="btnLogin" onclick="prosesLogin()">Masuk Sekarang</button>
+        
+        <div class="links">
+            Belum punya akun? <a href="signup.html">Daftar di sini</a>
+        </div>
+    </div>
+
+<script>
+    const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co';
+    const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1';
+    const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+    async function prosesLogin() {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const btn = document.getElementById('btnLogin');
+
+        if (!email || !password) return alert("Email dan Password wajib diisi!");
+
+        btn.disabled = true;
+        btn.innerText = "Memverifikasi...";
+
+        // Fungsi Autentikasi Supabase
+        const { data, error } = await _supabase.auth.signInWithPassword({
+            email: email,
+            password: password,
+        });
+
+        if (error) {
+            alert("Gagal Masuk: " + error.message);
+            btn.disabled = false;
+            btn.innerText = "Masuk Sekarang";
+        } else {
+            // Jika berhasil, kirim ke halaman input nilai
+            window.location.href = "guru.html"; 
+        }
+    }
+</script>
+</body>
+</html>

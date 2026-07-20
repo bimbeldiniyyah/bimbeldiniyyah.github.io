@@ -1,0 +1,278 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Panel Admin - Kelola Data</title>
+    <style>
+        /* Penambahan background kampus agar seragam dengan halaman lain */
+        body { 
+            font-family: 'Segoe UI', sans-serif; 
+            margin: 20px; 
+            background: linear-gradient(rgba(240, 242, 245, 0.85), rgba(240, 242, 245, 0.85)), 
+                        url('https://i.postimg.cc/BZc2W6T6/Chat-GPT-Image-Jul-16-2026-01-12-18-AM.png') no-repeat center center fixed;
+            background-size: cover;
+        }
+        
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+        .card { background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        h2 { border-bottom: 2px solid #007bff; padding-bottom: 10px; color: #2c3e50; }
+        .input-group { display: flex; flex-direction: column; gap: 10px; margin-bottom: 15px; }
+        input, select { padding: 10px; border: 1px solid #ddd; border-radius: 5px; }
+        button { padding: 8px 12px; cursor: pointer; border: none; border-radius: 5px; font-weight: bold; transition: 0.3s; }
+        .btn-add { background: #28a745; color: white; width: 100%; margin-bottom: 5px; }
+        
+        /* Gaya Tombol Edit (Kuning) dan Hapus (Merah) */
+        .btn-edit { background: #ffc107; color: #212529; font-size: 11px; margin-right: 5px; }
+        .btn-edit:hover { background: #e0a800; }
+        .btn-del { background: #dc3545; color: white; font-size: 11px; }
+        .btn-del:hover { background: #c82333; }
+
+        ul { list-style: none; padding: 0; }
+        li { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; }
+        .ni-badge { font-size: 11px; background: #e9ecef; padding: 2px 6px; border-radius: 4px; color: #495057; margin-right: 8px; }
+        .type-badge { font-size: 10px; color: white; padding: 3px 6px; border-radius: 4px; font-weight: bold; margin-left: 5px; }
+        .badge-tryout { background: #007bff; }
+        .badge-harian { background: #17a2b8; }
+        .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; background: white; padding: 10px 20px; border-radius: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        
+        #loading-gate { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: white; display: flex; justify-content: center; align-items: center; z-index: 9999; font-weight: bold; }
+        @media (max-width: 768px) { .grid { grid-template-columns: 1fr; } }
+    </style>
+</head>
+<body>
+    <div id="loading-gate">Mengecek Hak Akses Admin...</div>
+
+    <div class="nav">
+        <button onclick="window.location.href='guru.html'" style="background:#6c757d; color:white;">← Kembali ke Input Nilai</button>
+        <button onclick="prosesLogout()" style="background:#dc3545; color:white;">Logout</button>
+    </div>
+
+    <h1 style="color: #2c3e50; text-align: center; margin-bottom: 30px; text-shadow: 1px 1px 2px rgba(255,255,255,0.8);">⚙️ Panel Admin - Kelola Identitas & Try Out</h1>
+
+    <div class="grid">
+        <!-- 1. KELOLA KELAS -->
+        <div class="card">
+            <h2>1. Daftar Kelas</h2>
+            <div class="input-group">
+                <input type="text" id="inputKelas" placeholder="Nama Kelas Baru (Cth: 7A)...">
+                <button class="btn-add" id="btnTambahKelas" onclick="tambahKelas()">Tambah Kelas</button>
+            </div>
+            <ul id="listKelas"><li>Memuat data kelas...</li></ul>
+        </div>
+
+        <!-- 2. KELOLA MURID -->
+        <div class="card">
+            <h2>2. Daftar Murid</h2>
+            <div class="input-group">
+                <input type="text" id="niMurid" placeholder="Nomor Induk (NI)...">
+                <input type="text" id="namaMurid" placeholder="Nama Murid Baru...">
+                <select id="pilihKelasMurid">
+                    <option value="">-- Pilih Kelas Murid --</option>
+                </select>
+                <button class="btn-add" id="btnTambahMurid" onclick="tambahMurid()">Tambah Murid</button>
+            </div>
+            <ul id="listMurid"><li>Memuat data murid...</li></ul>
+        </div>
+
+        <!-- 3. KELOLA MATERI -->
+        <div class="card">
+            <h2>3. Daftar Materi</h2>
+            <p style="font-size: 11px; color: #666;">Klasifikasikan materi agar terpisah antara ujian Try Out dan Evaluasi Harian.</p>
+            <div class="input-group">
+                <input type="text" id="inputMateri" placeholder="Nama Materi (cth: hiwar)...">
+                <select id="tipeMateri">
+                    <option value="huruf">Tipe Penilaian: Huruf (A-E)</option>
+                    <option value="angka">Tipe Penilaian: Angka (1-100)</option>
+                </select>
+                <select id="kategoriMateri">
+                    <option value="tryout">Kategori: Masuk Try Out</option>
+                    <option value="harian">Kategori: Hanya Harian</option>
+                </select>
+                <button class="btn-add" id="btnTambahMateri" onclick="tambahMateri()">Tambah Materi</button>
+            </div>
+            <ul id="listMateri"><li>Memuat data materi...</li></ul>
+        </div>
+
+        <!-- 4. KELOLA TRY OUT -->
+        <div class="card">
+            <h2>4. Daftar Try Out</h2>
+            <p style="font-size: 11px; color: #666;">Atur periode Try Out agar grafik evaluasi anak lebih terstruktur.</p>
+            <div class="input-group">
+                <input type="text" id="inputTryout" placeholder="Nama Try Out (Cth: Try Out 1)...">
+                <button class="btn-add" id="btnTambahTryout" onclick="tambahTryout()">Tambah Try Out</button>
+            </div>
+            <ul id="listTryout"><li>Memuat data Try Out...</li></ul>
+        </div>
+    </div>
+
+    <script>
+        const supabaseUrl = 'https://vjoikcjirqjmossebkuq.supabase.co';
+        const supabaseKey = 'sb_publishable_zzXyepP2HphkZHu27-LNvg_cX0DBGS1';
+        const _supabase = supabase.createClient(supabaseUrl, supabaseKey);
+
+        window.onload = async function() {
+            try {
+                const { data: { session } } = await _supabase.auth.getSession();
+                if (!session) { window.location.href = "login.html"; return; }
+                document.getElementById('loading-gate').style.display = 'none';
+                muatData();
+            } catch (e) { window.location.href = "login.html"; }
+        };
+
+        async function muatData() {
+            await tampilkanKelas();
+            tampilkanMurid();
+            tampilkanMateri();
+            tampilkanTryout(); 
+        }
+
+        // ==========================================
+        // FUNGSI TAMPIL DATA (DENGAN TOMBOL EDIT)
+        // ==========================================
+
+        async function tampilkanKelas() {
+            const { data } = await _supabase.from('kelas').select('*').order('nama_kelas', { ascending: true });
+            const list = document.getElementById('listKelas');
+            const select = document.getElementById('pilihKelasMurid');
+            
+            if (data) {
+                // Tambahan tombol Edit Kelas
+                list.innerHTML = data.map(k => `<li><span><b>${k.nama_kelas}</b></span><div><button class="btn-edit" onclick="editKelas(${k.id}, '${k.nama_kelas}')">Edit</button><button class="btn-del" onclick="hapusData('kelas', ${k.id})">Hapus</button></div></li>`).join('');
+                select.innerHTML = '<option value="">-- Pilih Kelas Murid --</option>' + data.map(k => `<option value="${k.nama_kelas}">${k.nama_kelas}</option>`).join('');
+            }
+        }
+
+        async function tampilkanMurid() {
+            const { data } = await _supabase.from('murid').select('*').order('nama_murid', { ascending: true });
+            const list = document.getElementById('listMurid');
+            list.innerHTML = (data && data.length > 0) ? data.map(m => `<li><span><span class="ni-badge">${m.nomor_induk}</span> <b>${m.nama_murid}</b> <small>(${m.kelas || 'N/A'})</small></span><div><button class="btn-edit" onclick="editMurid(${m.id}, '${m.nomor_induk}', '${m.nama_murid.replace(/'/g, "\\'")}', '${m.kelas}')">Edit</button><button class="btn-del" onclick="hapusData('murid', ${m.id})">Hapus</button></div></li>`).join('') : "Tidak ada murid.";
+        }
+
+        async function tampilkanMateri() {
+            const { data } = await _supabase.from('materi').select('*').order('nama_materi', { ascending: true });
+            const list = document.getElementById('listMateri');
+            list.innerHTML = (data && data.length > 0) ? data.map(m => {
+                let kelasBadge = m.kategori === 'harian' ? 'badge-harian' : 'badge-tryout';
+                let teksKategori = m.kategori === 'harian' ? 'Harian' : 'Try Out';
+                return `<li><span><b>${m.nama_materi.toUpperCase()}</b> <span class="type-badge ${kelasBadge}">${teksKategori}</span></span><div><button class="btn-edit" onclick="editMateri(${m.id}, '${m.nama_materi}', '${m.tipe_penilaian}', '${m.kategori}')">Edit</button><button class="btn-del" onclick="hapusData('materi', ${m.id})">Hapus</button></div></li>`;
+            }).join('') : "Tidak ada materi.";
+        }
+
+        async function tampilkanTryout() {
+            const { data } = await _supabase.from('tryout').select('*').order('nama_tryout', { ascending: true });
+            const list = document.getElementById('listTryout');
+            // Tambahan tombol Edit Tryout
+            list.innerHTML = (data && data.length > 0) ? data.map(t => `<li><span><b>${t.nama_tryout}</b></span><div><button class="btn-edit" onclick="editTryout(${t.id}, '${t.nama_tryout}')">Edit</button><button class="btn-del" onclick="hapusData('tryout', ${t.id})">Hapus</button></div></li>`).join('') : "Tidak ada Try Out.";
+        }
+
+        // ==========================================
+        // FUNGSI TAMBAH DATA
+        // ==========================================
+
+        async function tambahKelas() {
+            const kls = document.getElementById('inputKelas').value.trim().toUpperCase();
+            if (!kls) return alert("Isi nama kelas!");
+            const { error } = await _supabase.from('kelas').insert([{ nama_kelas: kls }]);
+            if (error) alert("Error: Nama kelas mungkin sudah ada."); else { muatData(); document.getElementById('inputKelas').value = ""; }
+        }
+
+        async function tambahMurid() {
+            const ni = document.getElementById('niMurid').value;
+            const nama = document.getElementById('namaMurid').value;
+            const kls = document.getElementById('pilihKelasMurid').value;
+            if (!ni || !nama || !kls) return alert("Isi NI, Nama, dan Kelas!");
+            const { error } = await _supabase.from('murid').insert([{ nomor_induk: ni, nama_murid: nama, kelas: kls }]);
+            if (error) alert(error.message); else { muatData(); document.getElementById('niMurid').value = ""; document.getElementById('namaMurid').value = ""; }
+        }
+
+        async function tambahMateri() {
+            const materi = document.getElementById('inputMateri').value.trim().toLowerCase();
+            const tipe = document.getElementById('tipeMateri').value;
+            const kategori = document.getElementById('kategoriMateri').value;
+            
+            if (!materi) return alert("Isi nama materi!");
+            const { error } = await _supabase.from('materi').insert([{ nama_materi: materi, tipe_penilaian: tipe, kategori: kategori }]);
+            if (error) alert(error.message); else { muatData(); document.getElementById('inputMateri').value = ""; }
+        }
+
+        async function tambahTryout() {
+            const to = document.getElementById('inputTryout').value.trim();
+            if (!to) return alert("Isi nama Try Out!");
+            const { error } = await _supabase.from('tryout').insert([{ nama_tryout: to }]);
+            if (error) alert(error.message); else { muatData(); document.getElementById('inputTryout').value = ""; }
+        }
+
+        // ==========================================
+        // FUNGSI EDIT DATA
+        // ==========================================
+
+        // Edit Kelas Baru
+        async function editKelas(id, namaLama) {
+            const namaBaru = prompt("Ubah Nama Kelas:", namaLama);
+            if (namaBaru && namaBaru.trim() !== "") {
+                const { error } = await _supabase.from('kelas').update({ nama_kelas: namaBaru.trim().toUpperCase() }).eq('id', id);
+                if (error) alert(error.message); else muatData();
+            }
+        }
+
+        // Edit Murid
+        async function editMurid(id, niLama, namaLama, kelasLama) {
+            const niBaru = prompt("Ubah NI:", niLama);
+            if (!niBaru) return;
+            const namaBaru = prompt("Ubah Nama:", namaLama);
+            if (!namaBaru) return;
+            const kelasBaru = prompt("Ubah Kelas:", kelasLama);
+            if (!kelasBaru) return;
+
+            const { error } = await _supabase.from('murid').update({ nomor_induk: niBaru, nama_murid: namaBaru, kelas: kelasBaru }).eq('id', id);
+            if (error) alert(error.message); else muatData();
+        }
+
+        // Edit Materi (Termasuk Tipe & Kategori)
+        async function editMateri(id, namaLama, tipeLama, kategoriLama) {
+            const namaBaru = prompt("Ubah Nama Materi:", namaLama);
+            if (!namaBaru) return;
+            
+            const tipeBaru = prompt("Ubah Tipe (ketik 'huruf' atau 'angka'):", tipeLama);
+            if (tipeBaru !== 'huruf' && tipeBaru !== 'angka') return alert("Pembaruan dibatalkan: Tipe harus diisi 'huruf' atau 'angka'!");
+            
+            const kategoriBaru = prompt("Ubah Kategori (ketik 'tryout' atau 'harian'):", kategoriLama || 'tryout');
+            if (kategoriBaru !== 'tryout' && kategoriBaru !== 'harian') return alert("Pembaruan dibatalkan: Kategori harus diisi 'tryout' atau 'harian'!");
+
+            const { error } = await _supabase.from('materi').update({ 
+                nama_materi: namaBaru.toLowerCase(), 
+                tipe_penilaian: tipeBaru,
+                kategori: kategoriBaru
+            }).eq('id', id);
+            if (error) alert(error.message); else muatData();
+        }
+
+        // Edit Tryout Baru
+        async function editTryout(id, namaLama) {
+            const namaBaru = prompt("Ubah Nama Try Out:", namaLama);
+            if (namaBaru && namaBaru.trim() !== "") {
+                const { error } = await _supabase.from('tryout').update({ nama_tryout: namaBaru.trim() }).eq('id', id);
+                if (error) alert(error.message); else muatData();
+            }
+        }
+
+        // ==========================================
+        // FUNGSI HAPUS DAN LOGOUT
+        // ==========================================
+
+        async function hapusData(tabel, id) {
+            if (confirm(`Peringatan: Menghapus data master di sini mungkin akan mempengaruhi riwayat nilai. Yakin hapus dari tabel ${tabel}?`)) {
+                const { error } = await _supabase.from(tabel).delete().eq('id', id);
+                if (error) alert(error.message); else muatData();
+            }
+        }
+
+        async function prosesLogout() {
+            await _supabase.auth.signOut();
+            window.location.href = "login.html";
+        }
+    </script>
+</body>
+</html>
